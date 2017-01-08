@@ -500,7 +500,7 @@ class frame(IFrame):
                     updates.CopyFrom(dataframe_change)
                 except HTTPError as exc:
                     self.__handle_request_errors(resp, exc)
-            #json.dump(updates, open("pull_" + self.get_app().__class__.__name__ + ".json", "a") , sort_keys = True, separators = (',', ': '), indent = 4)
+            json.dump(updates, open("pull_" + self.__appname + ".json", "a") , sort_keys = True, separators = (',', ': '), indent = 4)
             self.__process_pull_resp(updates)
         except ConnectionError:
             self.logger.exception("Disconnected from host.")
