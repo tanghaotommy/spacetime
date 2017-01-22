@@ -21,10 +21,16 @@ LOG_HEADER = "[CRAWLER]"
 @GetterSetter(OneUnProcessedGroup)
 class CrawlerFrame(IApplication):
 
-    def __init__(self, frame, app_name, useragent):
-        self.app_id = app_name
+    def __init__(self, frame):
+        # Set app_id <student_id1>_<student_id2>...
+        self.app_id = ""
+        # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
+        # If Graduate studetn, change the UnderGrad part to Grad.
+        self.UserAgentString = None
+		
         self.frame = frame
-        self.UserAgentString = useragent
+        assert(self.UserAgentString != None)
+        assert(self.app_id != "")
 
     def initialize(self):
         self.starttime = time()
