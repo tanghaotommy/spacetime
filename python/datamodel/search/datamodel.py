@@ -97,6 +97,12 @@ class Link(object):
     @http_code.setter
     def http_code(self, value): self._http_code = value
 
+    @dimension(str)
+    def error_reason(self): return self._error_reason
+
+    @error_reason.setter
+    def error_reason(self, value): self._error_reason = value
+
     @dimension(bool)
     def valid(self): 
         try:
@@ -153,14 +159,26 @@ class Link(object):
                         size = -1
                 except IndexError:
                     size = -1
-
+                try:
+                    content_type = urldata.info().getheaders("Content-Type")[0]
+                    mime = content_type.strip().split(";")[0].strip().lower()
+                    if mime not in [ "text/plain", "text/html", "application/xml" ]:
+                        self.error_reason = "Mime does not match"
+                        return ""
+                except Exception:
+                    pass
                 if size < MaxPageSize and urldata.code > 199 and urldata.code < 300:
                     return self.__ProcessUrlData(urldata.read(), useragentstring)
-            except HTTPError:
+                elif size >= MaxPageSize:
+                    self.error_reason = "Size too large."
+                
+            except HTTPError, e:
                 self.http_code = 400
+                self.error_reason = e.reason 
                 return ""
-            except URLError:
+            except URLError, e:
                 self.http_code = 400
+                self.error_reason = e.reason 
                 return ""
             except httplib.HTTPException:
                 self.http_code = 400
@@ -168,14 +186,16 @@ class Link(object):
             except socket.error:
                 if (retry_count == MaxRetryDownloadOnFail):
                     self.http_code = 400
+                    self.error_reason = "Socket error. Retries failed."
                     return ""
                 try:
                     print ("Retrying " + url + " " + str(retry_count + 1) + " time")
                 except Exception:
                     pass
                 return self.download(useragentstring, timeout, MaxPageSize, MaxRetryDownloadOnFail, retry_count + 1)
-            except Exception as e:
+            except Exception, e:
                 # Can throw unicode errors and others... don't halt the thread
+                self.error_reason = "Unknown error: " + e.message 
                 self.http_code = 499
                 print(type(e).__name__ + " occurred during URL Fetching.")
         return ""
