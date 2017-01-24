@@ -101,7 +101,7 @@ class Link(object):
     def error_reason(self): return self._error_reason
 
     @error_reason.setter
-    def error_reason(self, value): self._error_reason = value
+    def error_reason(self, value): self._error_reason = str(value)
 
     @dimension(bool)
     def valid(self): 
