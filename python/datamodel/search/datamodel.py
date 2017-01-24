@@ -311,3 +311,13 @@ class OneUnProcessedGroup(object):
         except AttributeError:
             pass
 
+@subset(Link)
+class DomainCount(object):
+    __groupby__ = Link.domain
+    @count(Link.url)
+    def link_count(self): return self._lc
+    @link_count.setter
+    def link_count(self, v): self._lc = v
+
+    @staticmethod
+    def __predicate__(l); return l.isprocessed = True
