@@ -320,4 +320,4 @@ class DomainCount(object):
     def link_count(self, v): self._lc = v
 
     @staticmethod
-    def __predicate__(l); return l.isprocessed = True
+    def __predicate__(l): return l.isprocessed = True
