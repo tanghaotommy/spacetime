@@ -9,7 +9,7 @@ from pcc.subset import subset
 from pcc.parameter import parameter, ParameterMode
 from pcc.set import pcc_set
 from pcc.projection import projection
-from pcc.attributes import dimension, primarykey
+from pcc.attributes import dimension, primarykey, count
 from pcc.impure import impure
 import socket, base64
 try:
@@ -320,4 +320,4 @@ class DomainCount(object):
     def link_count(self, v): self._lc = v
 
     @staticmethod
-    def __predicate__(l): return l.isprocessed = True
+    def __predicate__(l): return l.isprocessed == True
