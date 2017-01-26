@@ -28,10 +28,10 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = ""
+        self.app_id = "0972787_0972788"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = None
+        self.UserAgentString = "IR W17 Undergrad 0972787, 0972788"
 		
         self.frame = frame
         assert(self.UserAgentString != None)
@@ -77,6 +77,7 @@ STUB FUNCTIONS TO BE FILLED OUT BY THE STUDENT.
 '''
 def extract_next_links(rawDatas):
     outputLinks = list()
+    print rawDatas
     '''
     rawDatas is a list of tuples -> [(url1, raw_content1), (url2, raw_content2), ....]
     the return of this function should be a list of urls in their absolute form
