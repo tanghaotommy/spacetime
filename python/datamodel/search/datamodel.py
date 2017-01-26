@@ -9,7 +9,7 @@ from pcc.subset import subset
 from pcc.parameter import parameter, ParameterMode
 from pcc.set import pcc_set
 from pcc.projection import projection
-from pcc.attributes import dimension, primarykey
+from pcc.attributes import dimension, primarykey, count
 from pcc.impure import impure
 import socket, base64
 try:
@@ -91,17 +91,23 @@ class Link(object):
     @downloaded_by.setter
     def downloaded_by(self, value): self._downloaded_by = value
 
-    @dimension(int)
+    @dimension(str)
+    def first_detected_by(self): return self._fdb
+
+    @first_detected_by.setter
+    def first_detected_by(self, value): self._fdb = value
+
+    @dimension(str)
     def http_code(self): return self._http_code
 
     @http_code.setter
-    def http_code(self, value): self._http_code = value
+    def http_code(self, value): self._http_code = str(value)
 
     @dimension(str)
     def error_reason(self): return self._error_reason
 
     @error_reason.setter
-    def error_reason(self, value): self._error_reason = value
+    def error_reason(self, value): self._error_reason = str(value)
 
     @dimension(bool)
     def valid(self): 
@@ -131,14 +137,14 @@ class Link(object):
         self.raw_content = raw_content
         self.downloaded_by = useragentstr
         self.download_complete = True
-        return self.raw_content
+        return self.raw_content, True
 
     def download(self, useragentstring, timeout = 2, MaxPageSize = 1048576, MaxRetryDownloadOnFail = 5, retry_count = 0):
         self.isprocessed = True
         url = self.full_url
         if self.raw_content != None:
             print ("Downloading " + url + " from cache.")
-            return self.raw_content
+            return self.raw_content, True
         else:
             try:
                 print ("Downloading " + url + " from source.")
@@ -164,30 +170,31 @@ class Link(object):
                     mime = content_type.strip().split(";")[0].strip().lower()
                     if mime not in [ "text/plain", "text/html", "application/xml" ]:
                         self.error_reason = "Mime does not match"
-                        return ""
+                        return "", False
                 except Exception:
                     pass
                 if size < MaxPageSize and urldata.code > 199 and urldata.code < 300:
                     return self.__ProcessUrlData(urldata.read(), useragentstring)
                 elif size >= MaxPageSize:
                     self.error_reason = "Size too large."
-                
+                    return "", False
+
             except HTTPError, e:
                 self.http_code = 400
-                self.error_reason = e.reason 
-                return ""
+                self.error_reason = str(e.reason)
+                return "", False
             except URLError, e:
                 self.http_code = 400
-                self.error_reason = e.reason 
-                return ""
+                self.error_reason = str(e.reason)
+                return "", False
             except httplib.HTTPException:
                 self.http_code = 400
-                return ""
+                return "", False
             except socket.error:
                 if (retry_count == MaxRetryDownloadOnFail):
                     self.http_code = 400
                     self.error_reason = "Socket error. Retries failed."
-                    return ""
+                    return "", False
                 try:
                     print ("Retrying " + url + " " + str(retry_count + 1) + " time")
                 except Exception:
@@ -198,14 +205,14 @@ class Link(object):
                 self.error_reason = "Unknown error: " + e.message 
                 self.http_code = 499
                 print(type(e).__name__ + " occurred during URL Fetching.")
-        return ""
+        return "", False
 
-@projection(Link, Link.url, Link.scheme, Link.domain)
+@projection(Link, Link.url, Link.scheme, Link.domain, Link.first_detected_by)
 class ProducedLink(object):
     @property
     def full_url(self): return self.scheme + "://" + self.url
     
-    def __init__(self, url):
+    def __init__(self, url, first_detected_by):
         pd = urlparse(url)
         if pd.path:
             path = pd.path[:-1] if pd.path[-1] == "/" else pd.path
@@ -214,6 +221,7 @@ class ProducedLink(object):
         self.url = pd.netloc + path + (("?" + pd.query) if pd.query else "")
         self.scheme = pd.scheme
         self.domain = pd.hostname
+        self.first_detected_by = first_detected_by
     
 @subset(Link)
 class NewLink(object):
@@ -235,23 +243,6 @@ class DownloadedLink(object):
     @staticmethod
     def __predicate__(l):
         return l.download_complete == True and l.valid == True
-
-@impure
-@subset(UnProcessedLink)
-class DistinctDomainUnprocessedLink(object):
-    @staticmethod
-    def __post_process__(l):
-        l.grouped = True
-        return l
-
-    @staticmethod
-    def __predicate__(l): return (l.isprocessed == False and l.grouped == False and l.valid == True)
-
-    @property
-    def __distinct__(self): return self.domain
-
-    __limit__ = 5
-
 
 @pcc_set
 class DownloadLinkGroup(object):
@@ -299,17 +290,22 @@ class OneUnProcessedGroup(object):
 
     def download(self, UserAgentString, is_valid, timeout = 2, MaxPageSize = 1048576, MaxRetryDownloadOnFail = 5, retry_count = 0):
         try:
-            return [(l.full_url, 
-                 l.download(
-                    UserAgentString,
-                    timeout,
-                    MaxPageSize,
-                    MaxRetryDownloadOnFail,
-                    retry_count)
-                 ) for l in self.link_group
-                    if is_valid(l.full_url) and robot_manager.Allowed(l.full_url, UserAgentString)]
+            success_urls = list()
+            result = list()
+            for l in self.link_group:
+                if is_valid(l.full_url) and robot_manager.Allowed(l.full_url, UserAgentString):
+                    content, success = l.download(
+                        UserAgentString,
+                        timeout,
+                        MaxPageSize,
+                        MaxRetryDownloadOnFail,
+                        retry_count)
+                    if success:
+                        success_urls.append(l.full_url)
+                    result.append((l.full_url, content))
+            return result, success_urls
         except AttributeError:
-            pass
+            return list(), list()
 
 @subset(Link)
 class DomainCount(object):
@@ -320,4 +316,4 @@ class DomainCount(object):
     def link_count(self, v): self._lc = v
 
     @staticmethod
-    def __predicate__(l); return l.isprocessed = True
+    def __predicate__(l): return l.isprocessed == True

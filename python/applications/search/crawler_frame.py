@@ -2,7 +2,8 @@ import logging
 from datamodel.search.datamodel import ProducedLink, OneUnProcessedGroup, robot_manager
 from spacetime_local.IApplication import IApplication
 from spacetime_local.declarations import Producer, GetterSetter, Getter
-import re
+from lxml import html,etree
+import re, os
 from time import time
 
 try:
@@ -15,13 +16,17 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 LOG_HEADER = "[CRAWLER]"
-
+url_count = 0 if not os.path.exists("successful_urls.txt") else (len(open("successful_urls.txt").readlines()) - 1)
+if url_count < 0:
+    url_count = 0
+MAX_LINKS_TO_DOWNLOAD = 20
 
 @Producer(ProducedLink)
 @GetterSetter(OneUnProcessedGroup)
 class CrawlerFrame(IApplication):
 
     def __init__(self, frame):
+        self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
         self.app_id = ""
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
@@ -31,11 +36,12 @@ class CrawlerFrame(IApplication):
         self.frame = frame
         assert(self.UserAgentString != None)
         assert(self.app_id != "")
+        if url_count >= MAX_LINKS_TO_DOWNLOAD:
+            self.done = True
 
     def initialize(self):
-        self.starttime = time()
         self.count = 0
-        l = ProducedLink("http://www.ics.uci.edu")
+        l = ProducedLink("http://www.ics.uci.edu", self.UserAgentString)
         print l.full_url
         self.frame.add(l)
 
@@ -45,15 +51,24 @@ class CrawlerFrame(IApplication):
             outputLinks = process_url_group(g, self.UserAgentString)
             for l in outputLinks:
                 if is_valid(l) and robot_manager.Allowed(l, self.UserAgentString):
-                    lObj = ProducedLink(l)
+                    lObj = ProducedLink(l, self.UserAgentString)
                     self.frame.add(lObj)
+        if url_count >= MAX_LINKS_TO_DOWNLOAD:
+            self.done = True
 
     def shutdown(self):
-        print "downloaded ", self.count, " in ", time() - self.starttime, " seconds."
+        print "downloaded ", url_count, " in ", time() - self.starttime, " seconds."
         pass
 
+def save_count(urls):
+    global url_count
+    url_count += len(urls)
+    with open("successful_urls.txt", "a") as surls:
+        surls.write("\n".join(urls) + "\n")
+
 def process_url_group(group, useragentstr):
-    rawDatas = group.download(useragentstr, is_valid)
+    rawDatas, successfull_urls = group.download(useragentstr, is_valid)
+    save_count(successfull_urls)
     return extract_next_links(rawDatas)
     
 #######################################################################################
