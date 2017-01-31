@@ -1,96 +1,131 @@
 import logging
-from datamodel.search.datamodel import Link, OneUnProcessedGroup, JustLink
+from datamodel.search.datamodel import ProducedLink, OneUnProcessedGroup, robot_manager
 from spacetime_local.IApplication import IApplication
 from spacetime_local.declarations import Producer, GetterSetter, Getter
 from lxml import html,etree
-import re
+import re, os
 from time import time
-from Robot import Robot
-try:
-    # For python 2
-    from urlparse import urlparse, parse_qs
-except ImportError:
-    # For python 3
-    from urllib.parse import urlparse, parse_qs
+import urlparse
+
+# try:
+#     # For python 2
+#     from urlparse import urlparse, parse_qs, urljoin
+# except ImportError:
+#     # For python 3
+#     from urllib.parse import urlparse, parse_qs
 
 
 logger = logging.getLogger(__name__)
 LOG_HEADER = "[CRAWLER]"
+url_count = 0 if not os.path.exists("successful_urls.txt") else (len(open("successful_urls.txt").readlines()) - 1)
+if url_count < 0:
+    url_count = 0
+MAX_LINKS_TO_DOWNLOAD = 3000
 
-
-@Producer(Link)
-@Getter(JustLink)
+@Producer(ProducedLink)
 @GetterSetter(OneUnProcessedGroup)
 class CrawlerFrame(IApplication):
 
-    def __init__(self, frame, app_name, useragent):
-        self.app_id = app_name
+    def __init__(self, frame):
+        self.starttime = time()
+        # Set app_id <student_id1>_<student_id2>...
+        self.app_id = "0972787_0972788"
+        # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
+        # If Graduate studetn, change the UnderGrad part to Grad.
+        self.UserAgentString = "IR W17 UnderGrad 0972787, 0972788"
+		
         self.frame = frame
-        self.robot_manager = Robot()
-        self.UserAgentString = useragent
+        assert(self.UserAgentString != None)
+        assert(self.app_id != "")
+        if url_count >= MAX_LINKS_TO_DOWNLOAD:
+            self.done = True
 
     def initialize(self):
-        self.starttime = time()
         self.count = 0
-        l = Link("http://www.ics.uci.edu")
+        l = ProducedLink("http://www.ics.uci.edu/grad/degrees/index", self.UserAgentString)
         print l.full_url
         self.frame.add(l)
 
     def update(self):
-        outputLinks = []
+        print "Update"
         for g in self.frame.get(OneUnProcessedGroup):
-            rawDatas = g.download(self.UserAgentString)
-            self.count += 1
-            for url, rawData in rawDatas:
-                if not rawData:
-                    print ("Error downloading " + url)
-                    continue
-                try:
-                    htmlParse = html.document_fromstring(rawData)
-                    htmlParse.make_links_absolute(url)
-                except etree.ParserError:
-                    print("ParserError: Could not extract the links from the url")
-                    continue
-                except etree.XMLSyntaxError:
-                    print("XMLError: Could not extract the links from the url")
-                    continue
-    
-                for element, attribute, link, pos in htmlParse.iterlinks():
-                    if link != url:
-                        outputLinks.append(link)
+            print "Got a Group"
+            outputLinks = process_url_group(g, self.UserAgentString)
             for l in outputLinks:
-                if self.is_valid(l):
-                    lObj = Link(l)
-                    if self.frame.get(JustLink, lObj.url) == None:
-                        self.frame.add(lObj)
-
-    def is_valid(self, url):
-        parsed = urlparse(url)
-        if parsed.scheme not in set(["http", "https"]):
-            return False
-        if not self.robot_manager.Allowed(url, self.UserAgentString):
-            return False
-        try:
-            return ".ics.uci.edu" in parsed.hostname \
-                and not re.match(".*\.(css|js|bmp|gif|jpe?g|ico" + "|png|tiff?|mid|mp2|mp3|mp4"\
-                + "|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf" \
-                + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
-                + "|thmx|mso|arff|rtf|jar|csv"\
-                + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
-
-        except TypeError:
-            print ("TypeError for ", parsed)
+                if is_valid(l) and robot_manager.Allowed(l, self.UserAgentString):
+                    lObj = ProducedLink(l, self.UserAgentString)
+                    self.frame.add(lObj)
+        if url_count >= MAX_LINKS_TO_DOWNLOAD:
+            self.done = True
 
     def shutdown(self):
-        print "downloaded ", self.count, " in ", time() - self.starttime, " seconds."
+        print "downloaded ", url_count, " in ", time() - self.starttime, " seconds."
         pass
 
-def ExtractNextLinks(self, url, rawData, outputLinks):
-        '''Function to extract the next links to iterate over. No need to validate the links. They get validated at the ValudUrl function when added to the frontier
-        Add the output links to the outputLinks parameter (has to be a list). Return Bool signifying success of extracting the links.
-        rawData for url will not be stored if this function returns False. If there are no links but the rawData is still valid and has to be saved return True
-        Keep this default implementation if you need all the html links from rawData'''
+def save_count(urls):
+    global url_count
+    url_count += len(urls)
+    with open("successful_urls.txt", "a") as surls:
+        surls.write("\n".join(urls) + "\n")
 
-        
+def process_url_group(group, useragentstr):
+    rawDatas, successfull_urls = group.download(useragentstr, is_valid)
+    save_count(successfull_urls)
+    return extract_next_links(rawDatas)
+    
+#######################################################################################
+'''
+STUB FUNCTIONS TO BE FILLED OUT BY THE STUDENT.
+'''
+def extract_next_links(rawDatas):
+    outputLinks = list()
+    print rawDatas
+    '''
+    rawDatas is a list of tuples -> [(url1, raw_content1), (url2, raw_content2), ....]
+    the return of this function should be a list of urls in their absolute form
+    Validation of link via is_valid function is done later (see line 42).
+    It is not required to remove duplicates that have already been downloaded. 
+    The frontier takes care of that.
 
-        
+    Suggested library: lxml
+    '''
+    
+    for t in rawDatas:
+        url = t[0]
+        content = t[1]
+        if content == "":
+            continue
+        page = etree.HTML(content.lower())
+        hrefs = page.xpath(u"//a")
+
+        for href in hrefs:
+            rawHref = href.get("href")
+            absHref = urlparse.urljoin(url, rawHref)
+            outputLinks.append(absHref)
+            #print rawHref
+        #for href in outputLinks:
+            #print href
+    
+    #print outputLinks
+    return outputLinks
+
+def is_valid(url):
+    '''
+    Function returns True or False based on whether the url has to be downloaded or not.
+    Robot rules and duplication rules are checked separately.
+
+    This is a great place to filter out crawler traps.
+    '''
+    parsed = urlparse.urlparse(url)
+    if parsed.scheme not in set(["http", "https"]):
+        return False
+    try:
+        return ".ics.uci.edu" in parsed.hostname \
+            and not re.match(".*\.(css|js|bmp|gif|jpe?g|ico" + "|png|tiff?|mid|mp2|mp3|mp4"\
+            + "|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf" \
+            + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
+            + "|thmx|mso|arff|rtf|jar|csv"\
+            + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+
+    except TypeError:
+        print ("TypeError for ", parsed)
