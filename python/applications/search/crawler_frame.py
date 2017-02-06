@@ -5,13 +5,14 @@ from spacetime_local.declarations import Producer, GetterSetter, Getter
 from lxml import html,etree
 import re, os
 from time import time
+import urlparse
 
-try:
-    # For python 2
-    from urlparse import urlparse, parse_qs
-except ImportError:
-    # For python 3
-    from urllib.parse import urlparse, parse_qs
+# try:
+#     # For python 2
+#     from urlparse import urlparse, parse_qs, urljoin
+# except ImportError:
+#     # For python 3
+#     from urllib.parse import urlparse, parse_qs
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ LOG_HEADER = "[CRAWLER]"
 url_count = 0 if not os.path.exists("successful_urls.txt") else (len(open("successful_urls.txt").readlines()) - 1)
 if url_count < 0:
     url_count = 0
-MAX_LINKS_TO_DOWNLOAD = 20
+MAX_LINKS_TO_DOWNLOAD = 3000
 
 @Producer(ProducedLink)
 @GetterSetter(OneUnProcessedGroup)
@@ -31,7 +32,7 @@ class CrawlerFrame(IApplication):
         self.app_id = "0972787_0972788"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = "IR W17 Undergrad 0972787, 0972788"
+        self.UserAgentString = "IR W17 UnderGrad 0972787, 0972788"
 		
         self.frame = frame
         assert(self.UserAgentString != None)
@@ -41,11 +42,12 @@ class CrawlerFrame(IApplication):
 
     def initialize(self):
         self.count = 0
-        l = ProducedLink("http://www.ics.uci.edu", self.UserAgentString)
+        l = ProducedLink("http://www.ics.uci.edu/grad/degrees/index", self.UserAgentString)
         print l.full_url
         self.frame.add(l)
 
     def update(self):
+        print "Update"
         for g in self.frame.get(OneUnProcessedGroup):
             print "Got a Group"
             outputLinks = process_url_group(g, self.UserAgentString)
@@ -87,6 +89,24 @@ def extract_next_links(rawDatas):
 
     Suggested library: lxml
     '''
+    
+    for t in rawDatas:
+        url = t[0]
+        content = t[1]
+        if content == "":
+            continue
+        page = etree.HTML(content.lower())
+        hrefs = page.xpath(u"//a")
+
+        for href in hrefs:
+            rawHref = href.get("href")
+            absHref = urlparse.urljoin(url, rawHref)
+            outputLinks.append(absHref)
+            #print rawHref
+        #for href in outputLinks:
+            #print href
+    
+    #print outputLinks
     return outputLinks
 
 def is_valid(url):
@@ -96,7 +116,7 @@ def is_valid(url):
 
     This is a great place to filter out crawler traps.
     '''
-    parsed = urlparse(url)
+    parsed = urlparse.urlparse(url)
     if parsed.scheme not in set(["http", "https"]):
         return False
     try:
