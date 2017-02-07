@@ -20,7 +20,7 @@ LOG_HEADER = "[CRAWLER]"
 url_count = 0 if not os.path.exists("successful_urls.txt") else (len(open("successful_urls.txt").readlines()) - 1)
 if url_count < 0:
     url_count = 0
-MAX_LINKS_TO_DOWNLOAD = 3000
+MAX_LINKS_TO_DOWNLOAD = 30
 
 @Producer(ProducedLink)
 @GetterSetter(OneUnProcessedGroup)
@@ -42,12 +42,11 @@ class CrawlerFrame(IApplication):
 
     def initialize(self):
         self.count = 0
-        l = ProducedLink("http://www.ics.uci.edu/grad/degrees/index", self.UserAgentString)
+        l = ProducedLink("http://www.ics.uci.edu/", self.UserAgentString)
         print l.full_url
         self.frame.add(l)
 
     def update(self):
-        print "Update"
         for g in self.frame.get(OneUnProcessedGroup):
             print "Got a Group"
             outputLinks = process_url_group(g, self.UserAgentString)
@@ -59,8 +58,22 @@ class CrawlerFrame(IApplication):
             self.done = True
 
     def shutdown(self):
+        global avgDownloadTime
+        global dic
+        global invalidCount
+        global mostOutLinks
+        global pageSize
         print "downloaded ", url_count, " in ", time() - self.starttime, " seconds."
-        pass
+        avgDownloadTime = url_count / (time() - self.starttime)
+        file_object = open('Analytics.txt', 'w')
+        file_object.write("Different urls from each subdomains: \n")
+        for key in dic:
+            file_object.write(str(key) + ": " + str(dic[key]) + "\n")
+        file_object.write("\nNumber of invalid links: " + str(invalidCount) + "\n")
+        file_object.write("The page with the most out links: " + str(mostOutLinks) + "\n")
+        file_object.write("The average download time per URL: " + str(avgDownloadTime) + " second\n")
+        file_object.write("The average download size per URL: " + str(pageSize / url_count) + " bytes\n")
+        file_object.close( )
 
 def save_count(urls):
     global url_count
@@ -69,17 +82,59 @@ def save_count(urls):
         surls.write("\n".join(urls) + "\n")
 
 def process_url_group(group, useragentstr):
+    global invalidCount
     rawDatas, successfull_urls = group.download(useragentstr, is_valid)
-    save_count(successfull_urls)
+    for url in successfull_urls:
+        if not is_valid(url):
+            invalidCount += 1
+            successfull_urls.remove(url)
+            print "invalid1"
+        else:
+            if url in address_set:
+                continue
+            else:
+                address_set.add(url)
+            urlParsed = urlparse.urlparse(url)
+            hostname = urlParsed.hostname
+            domain = hostname.split(".")
+            for i in range(0, len(domain) - 1):
+                subdomain = generate(domain[i:])
+                if subdomain in dic.keys():
+                    dic[subdomain] += 1
+                else:
+                    dic[subdomain] = 1
+    if successfull_urls:
+        save_count(successfull_urls)
     return extract_next_links(rawDatas)
     
 #######################################################################################
 '''
 STUB FUNCTIONS TO BE FILLED OUT BY THE STUDENT.
 '''
+
+dic = dict()
+address_set = set()
+invalidCount = 0
+avgDownloadTime = 0
+mostOutLinks = None
+mostOutLinksCount = 0
+pageSize = 0
+
+def generate(domains):
+    result = ""
+    for d in domains:
+        result += d + "."
+    return result[:-1]
+    
 def extract_next_links(rawDatas):
+    global dic
+    global address_set
+    global mostOutLinks
+    global mostOutLinksCount
+    global pageSize
+
     outputLinks = list()
-    print rawDatas
+    #print rawDatas
     '''
     rawDatas is a list of tuples -> [(url1, raw_content1), (url2, raw_content2), ....]
     the return of this function should be a list of urls in their absolute form
@@ -93,20 +148,25 @@ def extract_next_links(rawDatas):
     for t in rawDatas:
         url = t[0]
         content = t[1]
+        if not is_valid(url):
+            print "invalid2"
+            continue
         if content == "":
             continue
+        pageSize += len(content)
         page = etree.HTML(content.lower())
         hrefs = page.xpath(u"//a")
-
+        
+        hrefCount = len(hrefs)
+        if hrefCount > mostOutLinksCount:
+            mostOutLinks = url
+            mostOutLinksCount = hrefCount
+            
         for href in hrefs:
             rawHref = href.get("href")
             absHref = urlparse.urljoin(url, rawHref)
-            outputLinks.append(absHref)
-            #print rawHref
-        #for href in outputLinks:
-            #print href
-    
-    #print outputLinks
+            outputLinks.append(absHref)          
+         
     return outputLinks
 
 def is_valid(url):
@@ -116,16 +176,36 @@ def is_valid(url):
 
     This is a great place to filter out crawler traps.
     '''
+    global invalidCount
     parsed = urlparse.urlparse(url)
     if parsed.scheme not in set(["http", "https"]):
+        invalidCount += 1
+        print "1: " + url
+        return False
+    if re.match(r"^.*?(/.+?/).*?\1.*$|^.*?/(.+?/)\2.*$", url.lower()) or re.match(r"^.*calendar.*$", url.lower()): #https://support.archive-it.org/hc/en-us/articles/208332963-Modify-your-crawl-scope-with-a-Regular-Expression
+        invalidCount += 1
+        print "2: " + url
+        return False
+    hostname = parsed.hostname
+    if hostname[-1] == ".":
+        invalidCount += 1
+        print "3: " + url
         return False
     try:
-        return ".ics.uci.edu" in parsed.hostname \
+        isvalid = ".ics.uci.edu" in parsed.hostname \
             and not re.match(".*\.(css|js|bmp|gif|jpe?g|ico" + "|png|tiff?|mid|mp2|mp3|mp4"\
             + "|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf" \
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv"\
             + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+        if not isvalid:
+            print "4: " + url
+            invalidCount += 1
+        return isvalid
 
     except TypeError:
         print ("TypeError for ", parsed)
+
+
+
+
