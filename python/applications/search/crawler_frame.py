@@ -84,6 +84,7 @@ def save_count(urls):
 def process_url_group(group, useragentstr):
     global invalidCount
     rawDatas, successfull_urls = group.download(useragentstr, is_valid)
+    
     for url in successfull_urls:
         if not is_valid(url):
             invalidCount += 1
@@ -125,7 +126,7 @@ def generate(domains):
     for d in domains:
         result += d + "."
     return result[:-1]
-    
+     
 def extract_next_links(rawDatas):
     global dic
     global address_set
@@ -145,6 +146,7 @@ def extract_next_links(rawDatas):
     Suggested library: lxml
     '''
     
+    domainPath = set()
     for t in rawDatas:
         url = t[0]
         content = t[1]
@@ -165,7 +167,12 @@ def extract_next_links(rawDatas):
         for href in hrefs:
             rawHref = href.get("href")
             absHref = urlparse.urljoin(url, rawHref)
-            outputLinks.append(absHref)          
+            
+            pos = absHref.find("?")
+            path = absHref[:pos]
+            if path not in domainPath:
+                domainPath.add(path)  
+                outputLinks.append(absHref)        
          
     return outputLinks
 
