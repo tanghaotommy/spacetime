@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 LOG_HEADER = "[CRAWLER]"
 url_count = (set() 
     if not os.path.exists("successful_urls.txt") else 
-    set([line for line in open("successful_urls.txt").readlines() if line.strip() != ""]))
+    set([line.strip() for line in open("successful_urls.txt").readlines() if line.strip() != ""]))
 MAX_LINKS_TO_DOWNLOAD = 3000
 
 @Producer(ProducedLink)
@@ -28,15 +28,15 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = ""
+        self.app_id = "123455"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = None
+        self.UserAgentString = "MONDEGO TEST"
 		
         self.frame = frame
         assert(self.UserAgentString != None)
         assert(self.app_id != "")
-        if url_count >= MAX_LINKS_TO_DOWNLOAD:
+        if len(url_count) >= MAX_LINKS_TO_DOWNLOAD:
             self.done = True
 
     def initialize(self):
@@ -56,7 +56,7 @@ class CrawlerFrame(IApplication):
                 if is_valid(l) and robot_manager.Allowed(l, self.UserAgentString):
                     lObj = ProducedLink(l, self.UserAgentString)
                     self.frame.add(lObj)
-        if url_count >= MAX_LINKS_TO_DOWNLOAD:
+        if len(url_count) >= MAX_LINKS_TO_DOWNLOAD:
             self.done = True
 
     def shutdown(self):
