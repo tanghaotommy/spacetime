@@ -151,11 +151,17 @@ def extract_next_links(rawDatas):
     
     domainPath = set()
     for t in rawDatas:
-        url = t[0]
-        content = t[1]
-        if not is_valid(url):
-            print "invalid2"
-            continue
+        print "url: " + t.url
+        print "final_url:" + t.final_url
+        print "content: " + t.content
+        if t.is_redirected:
+            url = t.final_url
+        else:
+            url = t.url
+        content = t.content
+        # if not is_valid(url):
+        #     print "invalid2"
+        #     continue
         if content == "":
             continue
         pageSize += len(content)
