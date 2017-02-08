@@ -65,9 +65,11 @@ class CrawlerFrame(IApplication):
 
 def save_count(urls):
     global url_count
-    url_count.update(set(urls))
-    with open("successful_urls.txt", "a") as surls:
-        surls.write(("\n".join(urls) + "\n").encode("utf-8"))
+    urls = set(urls).difference(url_count)
+    url_count.update(urls)
+    if len(urls):
+        with open("successful_urls.txt", "a") as surls:
+            surls.write(("\n".join(urls) + "\n").encode("utf-8"))
 
 def process_url_group(group, useragentstr):
     rawDatas, successfull_urls = group.download(useragentstr, is_valid)
