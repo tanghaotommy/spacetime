@@ -28,10 +28,10 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = "123455"
+        self.app_id = ""
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = "MONDEGO TEST"
+        self.UserAgentString = None
 		
         self.frame = frame
         assert(self.UserAgentString != None)
@@ -60,7 +60,7 @@ class CrawlerFrame(IApplication):
             self.done = True
 
     def shutdown(self):
-        print "downloaded ", url_count, " in ", time() - self.starttime, " seconds."
+        print "downloaded ", len(url_count), " in ", time() - self.starttime, " seconds."
         pass
 
 def save_count(urls):
