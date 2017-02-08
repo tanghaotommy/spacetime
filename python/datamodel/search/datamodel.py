@@ -113,11 +113,11 @@ class Link(object):
     @first_detected_by.setter
     def first_detected_by(self, value): self._fdb = value
 
-    @dimension(str)
+    @dimension(int)
     def http_code(self): return self._http_code
 
     @http_code.setter
-    def http_code(self, value): self._http_code = str(value)
+    def http_code(self, value): self._http_code = int(value)
 
     @dimension(str)
     def error_reason(self): return self._error_reason
