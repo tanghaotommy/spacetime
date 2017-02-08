@@ -215,7 +215,7 @@ class Link(object):
         url = self.full_url
         if self.raw_content != None:
             print ("Downloading " + url + " from cache.")
-            return UrlResponse(self, url, self.raw_content, "", 200, self.http_headers, self.is_redirected, self.final_url), True
+            return UrlResponse(self, url, self.raw_content, "", self.http_code, self.http_headers, self.is_redirected, self.final_url), True
         else:
             try:
                 print ("Downloading " + url + " from source.")
