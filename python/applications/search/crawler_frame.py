@@ -2,7 +2,7 @@ import logging
 from datamodel.search.datamodel import ProducedLink, OneUnProcessedGroup, robot_manager
 from spacetime_local.IApplication import IApplication
 from spacetime_local.declarations import Producer, GetterSetter, Getter
-#from lxml import html,etree
+from lxml import html,etree
 import re, os
 from time import time
 import urlparse
@@ -151,13 +151,14 @@ def extract_next_links(rawDatas):
     
     domainPath = set()
     for t in rawDatas:
-        print "url: " + t.url
-        print "final_url:" + t.final_url
-        print "content: " + t.content
+        #print "url: " + t.url
+        #print "final_url:" + t.final_url
+        #print "content: " + t.content
         if t.is_redirected:
             url = t.final_url
         else:
             url = t.url
+        print url
         content = t.content
         # if not is_valid(url):
         #     print "invalid2"
@@ -182,8 +183,8 @@ def extract_next_links(rawDatas):
             if path not in domainPath:
                 domainPath.add(path)  
                 outputLinks.append(absHref)        
-         
-    return outputLinks
+    print outputLinks
+    return (outputLinks, [])
 
 def is_valid(url):
     '''
