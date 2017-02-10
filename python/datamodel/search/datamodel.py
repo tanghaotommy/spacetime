@@ -413,6 +413,7 @@ class OneUnProcessedGroup(object):
                         l.marked_invalid_by += ["Robot Rule"]
                 else:
                     l.marked_invalid_by += [UserAgentString]
+                    l.bad_url += [UserAgentString]
             return result, success_urls
         except AttributeError:
             return list(), list()
