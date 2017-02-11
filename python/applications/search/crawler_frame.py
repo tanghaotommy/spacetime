@@ -54,6 +54,8 @@ class CrawlerFrame(IApplication):
                 if urlResp.bad_url and self.UserAgentString not in set(urlResp.dataframe_obj.bad_url):
                     urlResp.dataframe_obj.bad_url += [self.UserAgentString]
             for l in outputLinks:
+                if not is_valid(l):
+                    print "outputLinks invalid"
                 if is_valid(l) and robot_manager.Allowed(l, self.UserAgentString):
                     lObj = ProducedLink(l, self.UserAgentString)
                     self.frame.add(lObj)
@@ -66,8 +68,8 @@ class CrawlerFrame(IApplication):
         global invalidCount
         global mostOutLinks
         global pageSize
-        print "downloaded ", url_count, " in ", time() - self.starttime, " seconds."
-        avgDownloadTime = url_count / (time() - self.starttime)
+        print "downloaded ", len(url_count), " in ", time() - self.starttime, " seconds."
+        avgDownloadTime = len(url_count) / (time() - self.starttime)
         file_object = open('Analytics.txt', 'w')
         file_object.write("Different urls from each subdomains: \n")
         for key in dic:
@@ -75,7 +77,7 @@ class CrawlerFrame(IApplication):
         file_object.write("\nNumber of invalid links: " + str(invalidCount) + "\n")
         file_object.write("The page with the most out links: " + str(mostOutLinks) + "\n")
         file_object.write("The average download time per URL: " + str(avgDownloadTime) + " second\n")
-        file_object.write("The average download size per URL: " + str(pageSize / url_count) + " bytes\n")
+        file_object.write("The average download size per URL: " + str(pageSize / len(url_count)) + " bytes\n")
         file_object.close( )
 
 def save_count(urls):
@@ -151,18 +153,11 @@ def extract_next_links(rawDatas):
     
     domainPath = set()
     for t in rawDatas:
-        #print "url: " + t.url
-        #print "final_url:" + t.final_url
-        #print "content: " + t.content
         if t.is_redirected:
             url = t.final_url
         else:
             url = t.url
-        print url
         content = t.content
-        # if not is_valid(url):
-        #     print "invalid2"
-        #     continue
         if content == "":
             continue
         pageSize += len(content)
@@ -182,8 +177,8 @@ def extract_next_links(rawDatas):
             path = absHref[:pos]
             if path not in domainPath:
                 domainPath.add(path)  
-                outputLinks.append(absHref)        
-    print outputLinks
+                outputLinks.append(absHref)      
+                  
     return (outputLinks, [])
 
 def is_valid(url):
@@ -195,18 +190,30 @@ def is_valid(url):
     '''
     global invalidCount
     parsed = urlparse.urlparse(url)
-    if parsed.scheme not in set(["http", "https"]):
+    if parsed.scheme not in set(["http", "https"]): #not start with http or https
         invalidCount += 1
         print "1: " + url
         return False
-    if re.match(r"^.*?(/.+?/).*?\1.*$|^.*?/(.+?/)\2.*$", url.lower()) or re.match(r"^.*calendar.*$", url.lower()): #https://support.archive-it.org/hc/en-us/articles/208332963-Modify-your-crawl-scope-with-a-Regular-Expression
+    if re.match(r"^.*?(/.+?/).*?\1.*$|^.*?/(.+?/)\2.*$", url.lower()): #duplicate path in url #https://support.archive-it.org/hc/en-us/articles/208332963-Modify-your-crawl-scope-with-a-Regular-Expression
         invalidCount += 1
         print "2: " + url
         return False
-    hostname = parsed.hostname
-    if hostname[-1] == ".":
+    if re.match(r"^.*calendar.*$", url.lower()): #url contatins "calendar" #https://support.archive-it.org/hc/en-us/articles/208332963-Modify-your-crawl-scope-with-a-Regular-Expression
         invalidCount += 1
         print "3: " + url
+        return False
+    if re.match(r".*.php.*.php.*$", url.lower()): #duplicate ".php" in url e.g. http://www.ics.uci.edu/grad/resources.php/faculty/area/community/degrees/index.php
+        invalidCount += 1
+        print "4: " + url
+        return False
+    if re.match(r".*mailto:.*$", url.lower()): #url contatins "mailto:" e.g. http://www.ics.uci.edu/grad/resources.php/ugrad/courses/mailto: i%63%73%77%65%62m%61s%74%65r@%69c%73%2e%75c%69%2eedu
+        invalidCount += 1
+        print "5: " + url
+        return False
+    hostname = parsed.hostname
+    if hostname[-1] == ".": #hostname ends with "." e.g. http://www.ics.uci.edu./
+        invalidCount += 1
+        print "6: " + url
         return False
     try:
         isvalid = ".ics.uci.edu" in parsed.hostname \
@@ -216,7 +223,7 @@ def is_valid(url):
             + "|thmx|mso|arff|rtf|jar|csv"\
             + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
         if not isvalid:
-            print "4: " + url
+            print "7: " + url
             invalidCount += 1
         return isvalid
 
