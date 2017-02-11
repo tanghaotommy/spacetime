@@ -180,7 +180,9 @@ def extract_next_links(rawDatas):
             if path not in domainPath:
                 domainPath.add(path)  
                 outputLinks.append(absHref)      
-                  
+    file_object = open('OutputLinks.txt', 'w')
+    file_object.write(str(outputLinks) + "\n")
+    file_object.close()
     return (outputLinks, [])
 
 def is_valid(url):
@@ -216,6 +218,10 @@ def is_valid(url):
     if hostname[-1] == ".": #hostname ends with "." e.g. http://www.ics.uci.edu./
         invalidCount += 1
         print "6: " + url
+        return False
+    if re.match(r"^.*/../.*$", url.lower()): #invalid path e.g. #http://www.ics.uci.edu/~eppstein/pix/eosya/../iday/Argentina.html
+        invalidCount += 1
+        print "8: " + url
         return False
     try:
         isvalid = ".ics.uci.edu" in parsed.hostname \
