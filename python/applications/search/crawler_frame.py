@@ -223,6 +223,11 @@ def is_valid(url):
         invalidCount += 1
         print "8: " + url
         return False
+
+    if re.match(r"^.*/thumbs.db$", url.lower()): #invalid file e.g. #http://www.ics.uci.edu/~rickl/courses/ics-h197/Thumbs.db
+        invalidCount += 1
+        print "9: " + url
+        return False
     try:
         isvalid = ".ics.uci.edu" in parsed.hostname \
             and not re.match(".*\.(css|js|bmp|gif|jpe?g|ico" + "|png|tiff?|mid|mp2|mp3|mp4"\
