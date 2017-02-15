@@ -6,6 +6,7 @@ from lxml import html,etree
 import re, os
 from time import time
 import urlparse
+import io
 
 # try:
 #     # For python 2
@@ -54,8 +55,9 @@ class CrawlerFrame(IApplication):
                 if urlResp.bad_url and self.UserAgentString not in set(urlResp.dataframe_obj.bad_url):
                     urlResp.dataframe_obj.bad_url += [self.UserAgentString]
             for l in outputLinks:
-                if not is_valid(l):
-                    print "outputLinks invalid"
+                # if not is_valid(l):
+                #     print "outputLinks invalid"
+                #     print "-------------------------------"
                 if is_valid(l) and robot_manager.Allowed(l, self.UserAgentString):
                     lObj = ProducedLink(l, self.UserAgentString)
                     self.frame.add(lObj)
@@ -68,15 +70,16 @@ class CrawlerFrame(IApplication):
         global invalidCount
         global mostOutLinks
         global pageSize
-        print "downloaded ", len(url_count), " in ", time() - self.starttime, " seconds."
-        avgDownloadTime = len(url_count) / (time() - self.starttime)
+
+        #print "downloaded ", len(url_count), " in ", time() - self.starttime, " seconds."
+        #avgDownloadTime = len(url_count) / (time() - self.starttime)
         file_object = open('Analytics.txt', 'w')
         file_object.write("Different urls from each subdomains: \n")
         for key in dic:
             file_object.write(str(key) + ": " + str(dic[key]) + "\n")
         file_object.write("\nNumber of invalid links: " + str(invalidCount) + "\n")
         file_object.write("The page with the most out links: " + str(mostOutLinks) + "\n")
-        file_object.write("The average download time per URL: " + str(avgDownloadTime) + " second\n")
+        #file_object.write("The average download time per URL: " + str(avgDownloadTime) + " second\n")
         file_object.write("The average download size per URL: " + str(pageSize / len(url_count)) + " bytes\n")
         file_object.close( )
 
@@ -88,28 +91,34 @@ def save_count(urls):
         with open("successful_urls.txt", "a") as surls:
             surls.write(("\n".join(urls) + "\n").encode("utf-8"))
 
-def process_url_group(group, useragentstr):
-    global invalidCount
-    rawDatas, successfull_urls = group.download(useragentstr, is_valid)
-    for url in successfull_urls:
-        if not is_valid(url):
-            invalidCount += 1
-            successfull_urls.remove(url)
-            print "invalid1"
-        else:
-            if url in address_set:
-                continue
-            else:
-                address_set.add(url)
+        for url in urls:
             urlParsed = urlparse.urlparse(url)
             hostname = urlParsed.hostname
             domain = hostname.split(".")
             for i in range(0, len(domain) - 1):
-                subdomain = generate(domain[i:])
+                subdomain = combine(domain[i:])
                 if subdomain in dic.keys():
                     dic[subdomain] += 1
                 else:
                     dic[subdomain] = 1
+
+        if len(url_count) < MAX_LINKS_TO_DOWNLOAD:
+            temp_object = open('temp.txt', 'w')
+            temp_object.write(str(len(dic)) + "\n")
+            for key in dic:
+                temp_object.write(str(key)+ "\n")
+                temp_object.write(str(dic[key]) + "\n")
+            temp_object.write(str(invalidCount) + "\n")
+            temp_object.write(str(mostOutLinks) + "\n")
+            temp_object.write(str(mostOutLinksCount) + "\n")
+            temp_object.write(str(pageSize) + "\n")
+        else:
+            os.remove('temp.txt')
+
+def process_url_group(group, useragentstr):
+    global invalidCount
+    rawDatas, successfull_urls = group.download(useragentstr, is_valid)
+    
     if successfull_urls:
         save_count(successfull_urls)
     return extract_next_links(rawDatas)
@@ -120,14 +129,28 @@ STUB FUNCTIONS TO BE FILLED OUT BY THE STUDENT.
 '''
 
 dic = dict()
-address_set = set()
 invalidCount = 0
 avgDownloadTime = 0
 mostOutLinks = None
 mostOutLinksCount = 0
 pageSize = 0
 
-def generate(domains):
+#refresh the vars used last time
+if os.path.exists("temp.txt"):
+    input = open('temp.txt', 'r')
+    dicLen = int(input.readline())
+    for i in range(0,dicLen):
+        key = input.readline()[:-1] #remove "\n"
+        value = int(input.readline())
+        dic[key] = value
+    invalidCount = int(input.readline())
+    mostOutLinks = input.readline()[:-1] #remove "\n"
+    mostOutLinksCount = int(input.readline())
+    pageSize = int(input.readline())
+    input.close()
+
+
+def combine(domains):
     result = ""
     for d in domains:
         result += d + "."
@@ -135,7 +158,6 @@ def generate(domains):
      
 def extract_next_links(rawDatas):
     global dic
-    global address_set
     global mostOutLinks
     global mostOutLinksCount
     global pageSize
@@ -180,9 +202,14 @@ def extract_next_links(rawDatas):
             if path not in domainPath:
                 domainPath.add(path)  
                 outputLinks.append(absHref)      
-    file_object = open('OutputLinks.txt', 'w')
-    file_object.write(str(outputLinks) + "\n")
-    file_object.close()
+    if outputLinks:
+        file_object = open('OutputLinks.txt', 'a')
+        file_object.write("1: " + str(outputLinks) + "\n")
+        file_object.close()
+    else:
+        file_object = open('OutputLinks.txt', 'a')
+        file_object.write("2: " + str(rawDatas) + "\n")
+        file_object.close()
     return (outputLinks, [])
 
 def is_valid(url):
@@ -194,39 +221,57 @@ def is_valid(url):
     '''
     global invalidCount
     parsed = urlparse.urlparse(url)
+    file_object = open('Invalid.txt', 'a')
     if parsed.scheme not in set(["http", "https"]): #not start with http or https
         invalidCount += 1
-        print "1: " + url
+        file_object.write("1: " + url.encode('utf8') + "\n")
+        #print "1: " + url
         return False
     if re.match(r"^.*?(/.+?/).*?\1.*$|^.*?/(.+?/)\2.*$", url.lower()): #duplicate path in url #https://support.archive-it.org/hc/en-us/articles/208332963-Modify-your-crawl-scope-with-a-Regular-Expression
         invalidCount += 1
-        print "2: " + url
+        file_object.write("2: " + url.encode('utf8') + "\n")
+        #print "2: " + url
         return False
     if re.match(r"^.*calendar.*$", url.lower()): #url contatins "calendar" #https://support.archive-it.org/hc/en-us/articles/208332963-Modify-your-crawl-scope-with-a-Regular-Expression
         invalidCount += 1
-        print "3: " + url
+        file_object.write("3: " + url.encode('utf8') + "\n")
+        #print "3: " + url
         return False
-    if re.match(r".*.php.*.php.*$", url.lower()): #duplicate ".php" in url e.g. http://www.ics.uci.edu/grad/resources.php/faculty/area/community/degrees/index.php
+    if re.match(r".*\.php.*\.php.*$", url.lower()): #duplicate ".php" in url e.g. http://www.ics.uci.edu/grad/resources.php/faculty/area/community/degrees/index.php
         invalidCount += 1
-        print "4: " + url
+        file_object.write("4: " + url.encode('utf8') + "\n")
+        #print "4: " + url
         return False
     if re.match(r".*mailto:.*$", url.lower()): #url contatins "mailto:" e.g. http://www.ics.uci.edu/grad/resources.php/ugrad/courses/mailto: i%63%73%77%65%62m%61s%74%65r@%69c%73%2e%75c%69%2eedu
         invalidCount += 1
-        print "5: " + url
+        file_object.write("5: " + url.encode('utf8') + "\n")
+        #print "5: " + url
         return False
     hostname = parsed.hostname
-    if hostname[-1] == ".": #hostname ends with "." e.g. http://www.ics.uci.edu./
+    if not re.match(r"^.*uci\.edu$", hostname.lower()): #hostname does not end with "uci.edu" e.g. http://www.ics.uci.edu./ or http://www.ics.uci.eduCh6UCDHtExample.pdf
         invalidCount += 1
-        print "6: " + url
+        file_object.write("6: " + url.encode('utf8') + "\n")
+        #print "6: " + url
         return False
-    if re.match(r"^.*/../.*$", url.lower()): #invalid path e.g. #http://www.ics.uci.edu/~eppstein/pix/eosya/../iday/Argentina.html
+    if re.match(r"^.*/\.\./.*$", url.lower()): #invalid path e.g. #http://www.ics.uci.edu/~eppstein/pix/eosya/../iday/Argentina.html
         invalidCount += 1
-        print "8: " + url
+        file_object.write("7: " + url.encode('utf8') + "\n")
+        #print "7: " + url
         return False
-
-    if re.match(r"^.*/thumbs.db$", url.lower()): #invalid file e.g. #http://www.ics.uci.edu/~rickl/courses/ics-h197/Thumbs.db
+    if re.match(r"^.*ganglia.*$", hostname.lower()): #hostname contatins "ganglia" # e.g. ganglia.ics.uci.edu
         invalidCount += 1
-        print "9: " + url
+        file_object.write("8: " + url.encode('utf8') + "\n")
+        #print "8: " + url
+        return False
+    if re.match(r"^.*\.(py|java|cpp)$", url.lower()): #url is a code file e.g. http://chemdb.ics.uci.edu/cgibin/Smi2DepictWeb.py
+        invalidCount += 1
+        file_object.write("9: " + url.encode('utf8') + "\n")
+        #print "9: " + url
+        return False
+    if re.match(r"^.*\.h5$", url.lower()): #url is a .h5 file e.g. mlphysics.ics.uci.edu/data/hepjets/images/test_pile_5000000.h5
+        invalidCount += 1
+        file_object.write("10: " + url.encode('utf8') + "\n")
+        #print "10: " + url
         return False
     try:
         isvalid = ".ics.uci.edu" in parsed.hostname \
@@ -236,13 +281,15 @@ def is_valid(url):
             + "|thmx|mso|arff|rtf|jar|csv"\
             + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
         if not isvalid:
-            print "7: " + url
+            file_object.write("11: " + url.encode('utf8') + "\n")
+            #print "11: " + url
             invalidCount += 1
         return isvalid
 
     except TypeError:
         print ("TypeError for ", parsed)
-
+    
+    file_object.close()
 
 
 
